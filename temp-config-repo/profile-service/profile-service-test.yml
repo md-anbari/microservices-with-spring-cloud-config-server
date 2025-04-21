@@ -1,0 +1,22 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+  # Non-sensitive test database configuration (placeholders only)
+  datasource:
+    url: jdbc:postgresql://test-db:5432/profile_test_db
+    # Sensitive credentials are in Vault
+
+# Test-specific settings
+app:
+  profile-service:
+    feature-flags:
+      enable-notifications: true
+    logging:
+      level: INFO
+  notification-service:
+    url: http://notification-service:8083 

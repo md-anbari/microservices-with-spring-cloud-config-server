@@ -1,0 +1,17 @@
+# Production-specific configuration
+
+# Logging configuration
+logging:
+  level:
+    com.example.notificationservice: WARN
+    org.springframework.web: WARN
+
+# Production settings
+app:
+  notification-service:
+    simulate-sending: false # In production, actually send notifications
+    throttle-limit: 1000
+    retention-days: 90
+    rate-limit:
+      enabled: true
+      max-requests-per-second: 50 

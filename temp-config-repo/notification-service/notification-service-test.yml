@@ -1,0 +1,18 @@
+# Test-specific configuration
+
+# Logging configuration
+logging:
+  level:
+    com.example.notificationservice: INFO
+    org.springframework.web: INFO
+
+# Test settings
+app:
+  notification-service:
+    simulate-sending: true
+    throttle-limit: 20
+    retention-days: 7
+    test-mode: true
+    notification-filters:
+      enabled: true
+      skip-external-services: true 
