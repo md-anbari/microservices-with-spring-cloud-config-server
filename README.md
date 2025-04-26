@@ -1,127 +1,192 @@
 # Microservices with Spring Cloud Config Server
 
-A microservices architecture demonstrating Spring Cloud Config Server with Vault integration for secure credential management.
+A microservices architecture demonstrating centralized configuration management with Spring Cloud Config Server and HashiCorp Vault for secure credential storage.
 
-## Project Overview
+## Why Config Server?
 
-This project demonstrates a microservices architecture that externalizes configuration using Spring Cloud Config Server. The primary goal is to separate application code from configuration, allowing for environment-specific settings without code changes.
+In modern microservices architectures, configuration management presents significant challenges:
 
-Key features:
-- External configuration management for microservices
-- Secure credential storage using HashiCorp Vault
-- Environment-specific configuration profiles
-- Centralized configuration access point
+1. **Configuration Sprawl**: Without centralization, each service maintains its own configuration, leading to duplication and inconsistency.
 
-## Architecture
+2. **Environment-Specific Settings**: Services need different configurations for development, testing, and production environments.
 
-The project consists of the following components:
+3. **Sensitive Credentials**: Database passwords, API keys, and other secrets shouldn't be committed to code repositories.
 
-- **Config Server**: Centralizes configuration from multiple sources:
-  - Git repository for non-sensitive configuration
-  - HashiCorp Vault for sensitive credentials
-  - Combines both sources to provide a unified configuration API
+4. **Dynamic Reconfiguration**: Services sometimes need configuration updates without redeployment.
 
-- **Profile Service**: Manages user profile data
-  - Stores and retrieves user profile information
-  - Connects to PostgreSQL database
+Spring Cloud Config Server solves these problems by providing a centralized, version-controlled, environment-aware configuration system.
 
-- **Notification Service**: Handles user notifications
-  - Sends notifications through various channels
-  - Communicates with Profile Service
+## Project Architecture
 
-## Configuration Management
-
-### Configuration Sources
-
-1. **Git Repository**: Stores non-sensitive configuration
-   - Environment-specific property files
-   - Common application settings
-   - Service-specific configurations
-   - Format: `{application-name}-{profile}.yml`
-
-2. **HashiCorp Vault**: Stores sensitive credentials
-   - Database credentials
-   - API keys
-   - Encryption keys
-   - Other secrets
-
-The Config Server combines these sources to present a unified configuration view to each service.
-
-### Configuration Structure
-
-Each service has two primary configuration files:
-
-1. **bootstrap.yml**:
-   - Loaded during the bootstrap phase
-   - Contains configuration to connect to Config Server
-   - Minimal settings needed before the main application context loads
-
-2. **application.yml**:
-   - Contains service-specific configurations
-   - Can be overridden by Config Server
-   - Used for local development defaults
-
-### Benefits
-
-- **Separation of concerns**: Application code is decoupled from configuration
-- **Environment consistency**: Same codebase works across all environments
-- **Security**: Sensitive data stored securely in Vault
-- **Centralized management**: Single point for configuration changes
-- **Runtime reconfiguration**: Services can reload configuration without restart
-- **Version control**: Configuration history through Git
-
-## Project Structure
-
-The project uses a Maven multi-module structure:
+This project demonstrates a microservices architecture with:
 
 ```
-microservices-with-spring-cloud-config-server/
-├── config-server/                # Configuration server module
-├── profile-service/              # Profile management service
-├── notification-service/         # Notification handling service
-├── docker-compose.yml           # Docker setup for infrastructure
-└── pom.xml                      # Parent POM with common dependencies
+┌─────────────────┐     ┌───────────────┐     ┌─────────────┐
+│  Config Server  │◄────┤  Git Repo     │     │   Vault     │
+│                 │     │  (Non-sensitive)     │ (Sensitive) │
+└────────┬────────┘     └───────────────┘     └──────┬──────┘
+         │                                           │
+         │ Fetches config                  Fetches   │
+         │ from Git                        secrets   │
+         │                                           │
+         ▼                                           │
+┌─────────────────┐                                  │
+│ Microservices   │◄─────────────────────────────────┘
+│ - profile-service
+│ - notification-service
+└─────────────────┘
 ```
 
-Each module has its own Maven POM file that inherits from the parent, enabling consistent dependency management.
+### Our Scenario: Multi-Environment Database Configuration
 
-## Running the Project
+We have two microservices:
+- **Profile Service**: Manages user profiles
+- **Notification Service**: Handles notifications
 
-1. Start the infrastructure components:
-   ```
-   docker-compose up -d
-   ```
+Each service needs different database configurations for each environment:
 
-2. Start the Config Server:
-   ```
-   cd config-server
-   mvn spring-boot:run
-   ```
+```
+                    │ Development      │ Testing          │ Production
+────────────────────┼──────────────────┼──────────────────┼──────────────────
+Profile Service DB  │ profile_db (dev) │ profile_db (test)│ profile_db (prod)
+                    │ User: profile_dev_user
+                    │ Pass: profile_dev_password
+                    │ 
+Notification Svc DB │ notification_db  │ notification_db  │ notification_db
+                    │ User: notification_dev_user
+                    │ Pass: notification_dev_password
+```
 
-3. Start the Profile Service:
-   ```
-   cd profile-service
-   mvn spring-boot:run
-   ```
+## How Configuration Works
 
-4. Start the Notification Service:
-   ```
-   cd notification-service
-   mvn spring-boot:run
-   ```
+### 1. Git Repository (Non-Sensitive Config)
 
-## Features
+The Git repository contains YAML files with placeholders for sensitive data:
 
-- **Centralized Configuration**: All application properties are stored in a centralized Git repository
-- **Secure Credential Management**: Sensitive credentials are stored in Vault and combined with configuration
-- **Microservices Communication**: Services communicate through REST APIs
-- **Database Operations**: Profile service performs CRUD operations on PostgreSQL
-- **Health Monitoring**: Spring Boot Actuator endpoints for health checks and monitoring
+```yaml
+# profile-service-dev.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/profile_db
+    username: ${database.username}
+    password: ${database.password}
+    driver-class-name: org.postgresql.Driver
+```
 
-## Environment Setup
+### 2. HashiCorp Vault (Sensitive Data)
 
-The project uses environment variables defined in `.env` for Docker Compose configuration. This provides:
+Vault stores the sensitive credentials at paths specific to each service and environment:
 
-- PostgreSQL database for service data storage
-- Vault server for secret management
-- Appropriate connection between services 
+```
+# At path: kv/profile-service/dev
+database.username = profile_dev_user
+database.password = profile_dev_password
+```
+
+### 3. Config Server (Integration Layer)
+
+Config Server is the bridge that:
+- Retrieves YAML files from Git based on service name and environment
+- Fetches sensitive values from Vault at the matching path
+- Replaces ${...} placeholders with actual values
+- Delivers the complete configuration to microservices
+
+### 4. Microservice Bootstrap
+
+Each microservice identifies itself to Config Server:
+
+```yaml
+# bootstrap.yml
+spring:
+  application:
+    name: profile-service  # Identifies which service this is
+  profiles:
+    active: dev           # Identifies which environment to use
+  cloud:
+    config:
+      uri: http://localhost:8888  # Config Server location
+```
+
+## Setting Up The Project
+
+### 1. Infrastructure Setup
+
+Start the required infrastructure:
+```bash
+docker-compose up -d
+```
+
+This launches:
+- PostgreSQL database for profile and notification services
+- HashiCorp Vault for secure credential storage
+
+### 2. Vault Configuration
+
+Store the credentials in Vault:
+```bash
+# For profile-service dev environment
+docker exec -it $(docker ps -q -f name=vault) /bin/sh -c "export VAULT_TOKEN=myroot && export VAULT_ADDR=http://127.0.0.1:8200 && vault kv put kv/profile-service/dev database.username=profile_dev_user database.password=profile_dev_password"
+```
+
+### 3. Start Services
+
+Launch the Config Server:
+```bash
+cd config-server && mvn spring-boot:run
+```
+
+Launch the Profile Service:
+```bash
+cd profile-service && mvn spring-boot:run
+```
+
+## Verification
+
+You can verify the correct configuration loading:
+
+1. Check Config Server's merged configuration:
+```bash
+curl -u configuser:configpassword http://localhost:8888/profile-service/dev
+```
+
+2. Check if Profile Service received the correct configuration:
+```bash
+curl http://localhost:8081/actuator/env
+```
+
+## Benefits
+
+This approach provides:
+
+1. **Separation of Concerns**: Non-sensitive config in Git, sensitive credentials in Vault
+2. **Environment-Specific Configuration**: Easy switching between dev/test/prod
+3. **Service-Specific Contexts**: Each service gets only its relevant configuration
+4. **Security**: Credentials never appear in code or Git repositories
+5. **Centralized Management**: One place to update configuration
+
+## Environment-Specific Configuration
+
+The architecture supports different environments (dev, test, prod) through:
+
+1. Different git configuration files (e.g., profile-service-dev.yml, profile-service-prod.yml)
+2. Environment-specific paths in Vault (e.g., kv/profile-service/dev, kv/profile-service/prod)
+3. Setting the active profile in each service's bootstrap.yml
+
+## Adding a New Service
+
+To add a new microservice to this architecture:
+
+1. Create service-specific config files in Git (e.g., new-service.yml, new-service-dev.yml)
+2. Add service-specific secrets to Vault (e.g., kv/new-service/dev)
+3. Configure the service's bootstrap.yml to identify itself to Config Server:
+   ```yaml
+   spring:
+     application:
+       name: new-service
+     profiles:
+       active: dev
+     cloud:
+       config:
+         uri: http://localhost:8888
+   ``` 
+   ``` 
