@@ -1,0 +1,80 @@
+# Environment variables
+GIT_CONFIG_LABEL: main
+GIT_CONFIG_URI: https://github.com/repo-sample-path.git
+GIT_CONFIG_SEARCH_PATHS: "{application}"
+CONFIG_USER: configuser
+CONFIG_PASSWORD: configpassword
+VAULT_TOKEN: myroot
+GIT_CONFIG_PAT: github_sample_token
+# --------------------------------
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  main:
+    allow-bean-definition-overriding: true
+  cloud:
+    # Enable bootstrap properties
+    bootstrap:
+      enabled: true
+    config:
+      # This is crucial - it allows the app to start even when Git fails
+      fail-fast: false
+      server:
+        # Set bootstrap mode to true to fix initialization order
+        bootstrap: true
+        # Disable health checks for Git - critical for handling Git failures
+        health:
+          enabled: false
+        # Using the vault profile for sensitive data
+        vault:
+          host: localhost
+          port: 8200
+          scheme: http
+          authentication: TOKEN
+          token: ${VAULT_TOKEN}
+          kv-version: 2
+          backend: kv
+          default-context: application
+          profile-separator: '/'
+        # Using Git for configuration
+        git:
+          uri: ${GIT_CONFIG_URI}
+          default-label: ${GIT_CONFIG_LABEL}
+          search-paths: ${GIT_CONFIG_SEARCH_PATHS}
+          # Set to false to avoid startup failure on Git error
+          clone-on-start: true
+          force-pull: true
+          timeout: 10
+          # GitHub PAT token authentication
+          username: md-anbari
+          password: ${GIT_CONFIG_PAT}
+  profiles:
+    active: git,vault
+  security:
+    user:
+      name: ${CONFIG_USER}
+      password: ${CONFIG_PASSWORD}
+
+# Actuator endpoints exposure
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,refresh
+  endpoint:
+    health:
+      show-details: always
+      # Disable probing failed components in health checks
+      probes:
+        enabled: false
+
+logging:
+  level:
+    org.springframework.cloud.config.server.environment: DEBUG
+    org.eclipse.jgit: DEBUG
+    org.springframework.boot.context.config: DEBUG
+    org.springframework.cloud.config.server.composite: DEBUG
+    org.springframework.vault: DEBUG

@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: profile-service
+  profiles:
+    active: dev
+  cloud:
+    config:
+      enabled: true
+      uri: http://localhost:8888
+      username: configuser
+      password: configpassword
+      fail-fast: false
+      
+management:
+  security:
+    enabled: false
