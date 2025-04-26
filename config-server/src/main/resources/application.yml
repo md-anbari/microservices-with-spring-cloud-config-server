@@ -1,11 +1,11 @@
 # Environment variables
 GIT_CONFIG_LABEL: main
-GIT_CONFIG_URI: https://github.com/repo-sample-path.git
+GIT_CONFIG_URI: https://github.com/example/config-repo.git
 GIT_CONFIG_SEARCH_PATHS: "{application}"
 CONFIG_USER: configuser
 CONFIG_PASSWORD: configpassword
 VAULT_TOKEN: myroot
-GIT_CONFIG_PAT: github_sample_token
+GIT_CONFIG_PAT: github_pat_DUMMY_TOKEN_REPLACE_WITH_YOUR_ACTUAL_TOKEN
 # --------------------------------
 server:
   port: 8888
@@ -49,7 +49,7 @@ spring:
           force-pull: true
           timeout: 10
           # GitHub PAT token authentication
-          username: md-anbari
+          username: your-github-username
           password: ${GIT_CONFIG_PAT}
   profiles:
     active: git,vault

@@ -1,28 +1,24 @@
 #!/bin/bash
 
-# This script initializes multiple databases in PostgreSQL
-# It's used as a docker-entrypoint script in the postgres container
-
+# Simple script to set up profile_db database and profile_dev_user
 set -e
-set -u
 
-function create_user_and_database() {
-	local database=$1
-	echo "  Creating user and database '$database'"
-	psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-	    CREATE DATABASE $database;
-	    GRANT ALL PRIVILEGES ON DATABASE $database TO $POSTGRES_USER;
+echo "Creating profile_db database and profile_dev_user..."
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+    -- Create database
+    CREATE DATABASE profile_db;
+    
+    -- Create user with explicit password
+    CREATE USER profile_dev_user WITH PASSWORD 'profile_dev_password';
+    
+    -- Grant privileges
+    GRANT ALL PRIVILEGES ON DATABASE profile_db TO profile_dev_user;
+    
+    -- Connect to the database and set up schema permissions
+    \c profile_db
+    
+    -- Grant schema privileges
+    GRANT ALL PRIVILEGES ON SCHEMA public TO profile_dev_user;
 EOSQL
-}
 
-# Check if POSTGRES_MULTIPLE_DATABASES environment variable is set
-if [ -z "${POSTGRES_MULTIPLE_DATABASES:-}" ]; then
-	echo "POSTGRES_MULTIPLE_DATABASES environment variable is empty, no databases to create."
-	exit 0
-fi
-
-echo "Multiple database creation requested: $POSTGRES_MULTIPLE_DATABASES"
-for db in $(echo $POSTGRES_MULTIPLE_DATABASES | tr ',' ' '); do
-	create_user_and_database $db
-done
-echo "Multiple databases created successfully" 
+echo "Database setup completed successfully." 
